@@ -65,7 +65,7 @@ class FastOps(TensorOps):
         fn: Callable[[float, float], float], start: float = 0.0
     ) -> Callable[[Tensor, int], Tensor]:
         "See `tensor_ops.py`"
-        f = tensor_reduce(njit()(fn))
+        f = tensor_reduce(njit(inline="always")(fn))
 
         def ret(a: Tensor, dim: int) -> Tensor:
             out_shape = list(a.shape)
@@ -133,7 +133,7 @@ class FastOps(TensorOps):
 
 
 def tensor_map(
-    fn: Callable[[float], float]
+    fn: Callable[[float], float],
 ) -> Callable[[Storage, Shape, Strides, Storage, Shape, Strides], None]:
     """
     NUMBA low_level tensor_map function. See `tensor_ops.py` for description.
@@ -159,14 +159,30 @@ def tensor_map(
         in_shape: Shape,
         in_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        same = len(out_shape) == len(in_shape)
+        if same:
+            for j in range(len(out_shape)):
+                if out_shape[j] != in_shape[j] or out_strides[j] != in_strides[j]:
+                    same = False
+                    break
+        if same:
+            for i in prange(len(out)):
+                out[i] = fn(in_storage[i])
+        else:
+            for i in prange(len(out)):
+                oi = np.zeros(MAX_DIMS, dtype=np.int32)
+                ii = np.zeros(MAX_DIMS, dtype=np.int32)
+                to_index(i, out_shape, oi)
+                broadcast_index(oi, out_shape, in_shape, ii)
+                out[index_to_position(oi, out_strides)] = fn(
+                    in_storage[index_to_position(ii, in_strides)]
+                )
 
     return njit(parallel=True)(_map)  # type: ignore
 
 
 def tensor_zip(
-    fn: Callable[[float, float], float]
+    fn: Callable[[float, float], float],
 ) -> Callable[
     [Storage, Shape, Strides, Storage, Shape, Strides, Storage, Shape, Strides], None
 ]:
@@ -198,14 +214,38 @@ def tensor_zip(
         b_shape: Shape,
         b_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        same = len(out_shape) == len(a_shape) == len(b_shape)
+        if same:
+            for j in range(len(out_shape)):
+                if (
+                    out_shape[j] != a_shape[j]
+                    or out_shape[j] != b_shape[j]
+                    or out_strides[j] != a_strides[j]
+                    or out_strides[j] != b_strides[j]
+                ):
+                    same = False
+                    break
+        if same:
+            for i in prange(len(out)):
+                out[i] = fn(a_storage[i], b_storage[i])
+        else:
+            for i in prange(len(out)):
+                oi = np.zeros(MAX_DIMS, dtype=np.int32)
+                ai = np.zeros(MAX_DIMS, dtype=np.int32)
+                bi = np.zeros(MAX_DIMS, dtype=np.int32)
+                to_index(i, out_shape, oi)
+                broadcast_index(oi, out_shape, a_shape, ai)
+                broadcast_index(oi, out_shape, b_shape, bi)
+                out[index_to_position(oi, out_strides)] = fn(
+                    a_storage[index_to_position(ai, a_strides)],
+                    b_storage[index_to_position(bi, b_strides)],
+                )
 
     return njit(parallel=True)(_zip)  # type: ignore
 
 
 def tensor_reduce(
-    fn: Callable[[float, float], float]
+    fn: Callable[[float, float], float],
 ) -> Callable[[Storage, Shape, Strides, Storage, Shape, Strides, int], None]:
     """
     NUMBA higher-order tensor reduce function. See `tensor_ops.py` for description.
@@ -232,8 +272,15 @@ def tensor_reduce(
         a_strides: Strides,
         reduce_dim: int,
     ) -> None:
-        # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        for i in prange(len(out)):
+            oi = np.zeros(MAX_DIMS, dtype=np.int32)
+            to_index(i, out_shape, oi)
+            out_pos = index_to_position(oi, out_strides)
+            a_pos = index_to_position(oi, a_strides)
+            acc = out[out_pos]
+            for j in range(a_shape[reduce_dim]):
+                acc = fn(acc, a_storage[a_pos + j * a_strides[reduce_dim]])
+            out[out_pos] = acc
 
     return njit(parallel=True)(_reduce)  # type: ignore
 
@@ -282,8 +329,21 @@ def _tensor_matrix_multiply(
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
 
-    # TODO: Implement for Task 3.2.
-    raise NotImplementedError('Need to implement for Task 3.2')
+    rows = out_shape[1]
+    cols = out_shape[2]
+    for n in prange(len(out)):
+        batch = n // (rows * cols)
+        row = (n // cols) % rows
+        col = n % cols
+        a_pos = batch * a_batch_stride + row * a_strides[1]
+        b_pos = batch * b_batch_stride + col * b_strides[2]
+        acc = 0
+        for k in range(a_shape[2]):
+            acc += (
+                a_storage[a_pos + k * a_strides[2]]
+                * b_storage[b_pos + k * b_strides[1]]
+            )
+        out[batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]] = acc
 
 
 tensor_matrix_multiply = njit(parallel=True, fastmath=True)(_tensor_matrix_multiply)

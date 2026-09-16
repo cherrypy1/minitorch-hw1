@@ -16,6 +16,7 @@ MAX_DIMS = 32
 
 class IndexingError(RuntimeError):
     "Exception raised for indexing errors."
+
     pass
 
 
@@ -43,8 +44,10 @@ def index_to_position(index: Index, strides: Strides) -> int:
         Position in storage
     """
 
-    # TODO: Implement for Task 2.1.
-    raise NotImplementedError('Need to implement for Task 2.1')
+    pos = 0
+    for i in range(len(strides)):
+        pos += index[i] * strides[i]
+    return pos
 
 
 def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
@@ -60,8 +63,10 @@ def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
         out_index : return index corresponding to position.
 
     """
-    # TODO: Implement for Task 2.1.
-    raise NotImplementedError('Need to implement for Task 2.1')
+    stride = 1
+    for i in range(len(shape) - 1, -1, -1):
+        out_index[i] = (ordinal // stride) % shape[i]
+        stride *= shape[i]
 
 
 def broadcast_index(
@@ -83,8 +88,9 @@ def broadcast_index(
     Returns:
         None
     """
-    # TODO: Implement for Task 2.2.
-    raise NotImplementedError('Need to implement for Task 2.2')
+    off = len(big_shape) - len(shape)
+    for i, s in enumerate(shape):
+        out_index[i] = 0 if s == 1 else big_index[i + off]
 
 
 def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
@@ -101,8 +107,16 @@ def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
     Raises:
         IndexingError : if cannot broadcast
     """
-    # TODO: Implement for Task 2.2.
-    raise NotImplementedError('Need to implement for Task 2.2')
+    out = []
+    for a, b in zip(reversed(shape1), reversed(shape2)):
+        if a != b and a != 1 and b != 1:
+            raise IndexingError(f"Cannot broadcast {shape1} and {shape2}")
+        out.append(max(a, b))
+    if len(shape1) > len(shape2):
+        out.extend(reversed(shape1[: len(shape1) - len(shape2)]))
+    else:
+        out.extend(reversed(shape2[: len(shape2) - len(shape1)]))
+    return tuple(reversed(out))
 
 
 def strides_from_shape(shape: UserShape) -> UserStrides:
@@ -128,7 +142,7 @@ class TensorData:
         shape: UserShape,
         strides: Optional[UserStrides] = None,
     ):
-        if isinstance(storage, np.ndarray):
+        if isinstance(storage, np.ndarray) or hasattr(storage, "copy_to_host"):
             self._storage = storage
         else:
             self._storage = array(storage, dtype=float64)
@@ -149,7 +163,7 @@ class TensorData:
         assert len(self._storage) == self.size
 
     def to_cuda_(self) -> None:  # pragma: no cover
-        if not numba.cuda.is_cuda_array(self._storage):
+        if isinstance(self._storage, np.ndarray):
             self._storage = numba.cuda.to_device(self._storage)
 
     def is_contiguous(self) -> bool:
@@ -227,8 +241,11 @@ class TensorData:
             range(len(self.shape))
         ), f"Must give a position to each dimension. Shape: {self.shape} Order: {order}"
 
-        # TODO: Implement for Task 2.1.
-        raise NotImplementedError('Need to implement for Task 2.1')
+        return TensorData(
+            self._storage,
+            tuple(self.shape[i] for i in order),
+            tuple(self.strides[i] for i in order),
+        )
 
     def to_string(self) -> str:
         s = ""

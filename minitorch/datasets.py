@@ -21,6 +21,7 @@ class Graph:
 
 
 def simple(N: int) -> Graph:
+    "Classify points to the left of the vertical line."
     X = make_pts(N)
     y = []
     for x_1, x_2 in X:
@@ -30,6 +31,7 @@ def simple(N: int) -> Graph:
 
 
 def diag(N: int) -> Graph:
+    "Classify points below the diagonal line."
     X = make_pts(N)
     y = []
     for x_1, x_2 in X:
@@ -39,6 +41,7 @@ def diag(N: int) -> Graph:
 
 
 def split(N: int) -> Graph:
+    "Classify points on either side of the middle strip."
     X = make_pts(N)
     y = []
     for x_1, x_2 in X:
@@ -48,6 +51,7 @@ def split(N: int) -> Graph:
 
 
 def xor(N: int) -> Graph:
+    "Classify points in the upper-left and lower-right quadrants."
     X = make_pts(N)
     y = []
     for x_1, x_2 in X:
@@ -57,6 +61,7 @@ def xor(N: int) -> Graph:
 
 
 def circle(N: int) -> Graph:
+    "Classify points outside the central circle."
     X = make_pts(N)
     y = []
     for x_1, x_2 in X:
@@ -67,6 +72,8 @@ def circle(N: int) -> Graph:
 
 
 def spiral(N: int) -> Graph:
+    "Classify points on two interleaved spiral arms."
+
     def x(t: float) -> float:
         return t * math.cos(t) / 20.0
 
