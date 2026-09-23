@@ -27,4 +27,4 @@ jobs:
         flake8 --exclude project/interface/mlprimer.py --ignore "N801, E203, E266, E501, W503, F812, F401, F841, E741, N803, N802, N806" minitorch/ tests/ project/
     - name: Test with pytest
       run: |
-        pytest tests -x -m "task0_1 or task0_2 or task0_3 or task0_4 or task1_1 or task1_2 or task1_3 or task1_4 or task2_1 or task2_2 or task2_3 or task2_4 or task3_1 or task3_2 or task3_3 or task3_4"
+        pytest tests -x -ra --ignore=tests/test_conv.py --ignore=tests/test_nn.py
